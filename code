@@ -1,0 +1,250 @@
+import streamlit as st
+import pdfplumber
+import matplotlib.pyplot as plt
+import numpy as np
+
+# -------------------------------
+# CONFIG
+# -------------------------------
+st.set_page_config(page_title="AI Career Analyzer Pro", layout="wide")
+
+# -------------------------------
+# STYLING
+# -------------------------------
+def apply_theme():
+    st.markdown("""
+    <style>
+    .stApp {
+        background-image: url("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_ioLM8c1BDf96SMLzjumY51hCBz9e1fyqhQ&s");
+        background-size: cover;
+    }
+    .block-container {
+        background-color: rgba(0,0,0,0.75);
+        padding: 2rem;
+        border-radius: 12px;
+    }
+    h1,h2,h3,p,label {color:white;}
+    </style>
+    """, unsafe_allow_html=True)
+
+apply_theme()
+
+st.title("🚀 AI Career Readiness Analyzer PRO")
+
+# -------------------------------
+# AUTH SYSTEM
+# -------------------------------
+def login():
+    if "auth" not in st.session_state:
+        st.session_state.auth = False
+
+    if not st.session_state.auth:
+        st.subheader("🔐 Login")
+
+        user = st.text_input("Username")
+        pwd = st.text_input("Password", type="password")
+
+        if st.button("Login Now"):
+            if user == "admin" and pwd == "1234":
+                st.session_state.auth = True
+                st.success("Welcome!")
+                st.rerun()
+            else:
+                st.error("Wrong credentials")
+
+        st.stop()
+
+    if st.button("Logout"):
+        st.session_state.auth = False
+        st.rerun()
+
+login()
+
+# -------------------------------
+# DATA
+# -------------------------------
+JOB_DATA = {
+    "Data Scientist": (["python","sql","machine learning","statistics","pandas"], 40),
+    "AI Engineer": (["python","machine learning","deep learning","tensorflow"], 45),
+    "Software Developer": (["python","java","dsa","sql"], 38),
+    "Data Analyst": (["python","sql","excel","pandas"], 28)
+}
+
+COURSE_MAP = {
+    "python":"Python Course",
+    "sql":"SQL Mastery",
+    "machine learning":"ML Basics",
+    "deep learning":"DL with TensorFlow",
+    "statistics":"Statistics for Data Science",
+    "java":"Java Programming",
+    "dsa":"DSA Practice",
+    "excel":"Excel Advanced",
+    "pandas":"Pandas Data Analysis"
+}
+
+# -------------------------------
+# UTIL FUNCTIONS
+# -------------------------------
+def extract_text(pdf_file):
+    content = ""
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            content += (page.extract_text() or "").lower()
+    return content
+
+def extract_skills(text):
+    return [skill for skill in COURSE_MAP if skill in text]
+
+def compute_score(required, user_skills):
+    return (len(set(required) & set(user_skills)) / len(required)) * 100
+
+def suggest_missing(required, user_skills):
+    return [skill for skill in required if skill not in user_skills]
+
+def chatbot_reply(msg):
+    msg = msg.lower()
+    responses = {
+        "ai engineer": "Learn Python, ML, Deep Learning & TensorFlow",
+        "data scientist": "Focus on Stats, ML, Python, SQL",
+        "career": "Upload resume to get suggestions"
+    }
+    for key in responses:
+        if key in msg:
+            return responses[key]
+    return "Ask career-related questions"
+
+# -------------------------------
+# FILE UPLOAD
+# -------------------------------
+uploaded = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+
+if uploaded:
+    resume_text = extract_text(uploaded)
+    skills = extract_skills(resume_text)
+
+    st.subheader("🧠 Extracted Skills")
+    st.success(skills)
+
+    scores = {}
+
+    st.subheader("📊 Job Analysis")
+
+    for role, (req_skills, growth) in JOB_DATA.items():
+
+        score = compute_score(req_skills, skills)
+        scores[role] = score
+
+        st.markdown(f"## 💼 {role}")
+        st.write(f"Growth: {growth}%")
+        st.progress(int(score))
+        st.write(f"ATS Score: {round(score,2)}%")
+
+        gaps = suggest_missing(req_skills, skills)
+        st.write("❌ Skill Gap:", gaps)
+
+        for g in gaps:
+            st.write("➡ Learn:", COURSE_MAP.get(g, g))
+
+        st.write("---")
+
+    # -------------------------------
+    # TOP CAREERS
+    # -------------------------------
+    sorted_roles = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_roles = sorted_roles[:3]
+
+    st.subheader("🏆 Top Career Recommendations")
+
+    for i, (r, s) in enumerate(top_roles, 1):
+        st.success(f"{i}. {r} - {round(s,2)}%")
+
+    st.write("👉 Path:", " → ".join([r for r, _ in top_roles]))
+
+    best_role = sorted_roles[0][0]
+    st.success(f"🔥 Best Career: {best_role}")
+
+    # -------------------------------
+    # ROADMAP
+    # -------------------------------
+    st.subheader("🗺 6-Month Roadmap")
+
+    roadmap = [
+        "Month 1: Python + SQL",
+        "Month 2: Machine Learning",
+        "Month 3: Projects",
+        "Month 4: Deep Learning",
+        "Month 5: Apply Internships",
+        "Month 6: Interview Prep"
+    ]
+
+    for step in roadmap:
+        st.write("📌", step)
+
+    # -------------------------------
+    # METRICS
+    # -------------------------------
+    avg_score = np.mean(list(scores.values()))
+
+    st.subheader("📈 Resume Ranking")
+    st.metric("Rank Score", f"{round(avg_score,2)}/100")
+
+    # -------------------------------
+    # CERTIFICATIONS
+    # -------------------------------
+    st.subheader("🎓 Certifications")
+
+    needed = set()
+    for role, (req, _) in JOB_DATA.items():
+        for skill in req:
+            if skill not in skills:
+                needed.add(COURSE_MAP.get(skill))
+
+    for c in list(needed)[:5]:
+        st.write("🏅", c)
+
+    # -------------------------------
+    # GRAPH
+    # -------------------------------
+    st.subheader("📊 Future Demand Prediction")
+
+    years = [2026, 2027, 2028]
+    fig, ax = plt.subplots()
+
+    for role, (_, growth) in JOB_DATA.items():
+        trend = [growth, growth+5, growth+10]
+        ax.plot(years, trend, label=role)
+
+    ax.legend()
+    st.pyplot(fig)
+
+    # -------------------------------
+    # PIE
+    # -------------------------------
+    st.subheader("📊 Skill Match Distribution")
+
+    fig, ax = plt.subplots()
+    ax.pie(scores.values(), labels=scores.keys(), autopct="%1.1f%%")
+    st.pyplot(fig)
+
+    # -------------------------------
+    # CHATBOT
+    # -------------------------------
+    st.subheader("💬 Career Chatbot")
+
+    user_q = st.text_input("Ask something")
+    if user_q:
+        st.info(chatbot_reply(user_q))
+
+    # -------------------------------
+    # REPORT
+    # -------------------------------
+    report = f"""
+CAREER REPORT
+
+Skills: {skills}
+Best Role: {best_role}
+Scores: {scores}
+Top 3: {top_roles}
+"""
+
+    st.download_button("📥 Download Report", report, "report.txt")
